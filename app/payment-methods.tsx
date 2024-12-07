@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { router } from "expo-router";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Apple, Bank, Paypal, Thorchain } from "iconsax-react-native";
