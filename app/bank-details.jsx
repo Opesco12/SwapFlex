@@ -4,68 +4,68 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  TouchableWithoutFeedback,
+  TouchableOpacity,
   View,
+  Dimensions,
 } from "react-native";
 import React, { useState, useEffect } from "react";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
-import { useLocalSearchParams } from "expo-router";
+import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import getSymbolFromCurrency from "currency-symbol-map";
-import { getDatabase, ref, onValue, set } from "firebase/database";
+import { ref, onValue } from "firebase/database";
+import { useLocalSearchParams } from "expo-router";
 
 import Colors from "@/constants/Colors";
 import Box from "../components/Box";
 import AppButton from "../components/AppButton";
-
+import AppBackHeader from "@/components/AppBackHeader";
 import Screen from "@/components/Screen";
-
 import { db } from "@/firebaseConfig";
+
+const { width } = Dimensions.get("window");
 
 const BankDetailsScreen = ({ route }) => {
   const { currency } = useLocalSearchParams();
-  // const currency = route.params.currency;
-  // const rate = route.params.rate;
-  // const max = route.params.account.max_amount_receivable;
-  // const account = route.params.account;
-
-  const max = 2000; //2 thousand dollars or Euros
+  const max = 2000;
 
   const [amount, setAmount] = useState("");
   const [isHidden, setIsHidden] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [rates, setRates] = useState([]);
-  const navigation = useNavigation();
+  const [accountDetails, setAccountDetails] = useState({});
 
   const handleInput = (input) => {
     const maxValue = max;
-
     if (input <= maxValue) {
       setAmount(input);
     }
   };
 
   useEffect(() => {
-    console.log("Got here");
     const ratesRef = ref(db, "exchangeRates");
-    console.log("Reference created:", ratesRef);
-    console.log("Here too");
-    const unsubscribe = onValue(ratesRef, (snapshot) => {
+    const accountRef = ref(db, `currencyExchangeAccount/${currency}`);
+
+    const getRates = onValue(ratesRef, (snapshot) => {
       const data = snapshot.val();
-      console.log("Data gotten: ", data);
       const formattedRates = Object.entries(data).map(([key, value]) => ({
         currency: key,
         rate: value,
       }));
-      console.log("Here also");
-      console.log("Rates: ", formattedRates);
+
       setRates(formattedRates);
-      setLoading(false);
     });
 
-    // Return unsubscribe to clean up on unmount
-    return () => unsubscribe();
+    const getAccount = onValue(accountRef, (snapshot) => {
+      const data = snapshot.val();
+      setAccountDetails(data);
+    });
+    setLoading(false);
+
+    return () => {
+      getRates();
+      getAccount();
+    };
   }, []);
 
   const rateForCurrency = rates?.find(
@@ -75,237 +75,290 @@ const BankDetailsScreen = ({ route }) => {
   if (loading)
     return (
       <Screen>
-        <TouchableWithoutFeedback onPress={() => navigation.goBack()}>
-          <MaterialCommunityIcons
-            name="chevron-left"
-            size={40}
-            color={Colors.light}
+        <AppBackHeader />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator
+            size="large"
+            color={Colors.secondary}
           />
-        </TouchableWithoutFeedback>
-        <View
-          style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
-        >
-          <ActivityIndicator size={"large"} />
         </View>
       </Screen>
     );
 
   return (
     <Screen>
-      <View>
-        <TouchableWithoutFeedback onPress={() => navigation.goBack()}>
-          <MaterialCommunityIcons
-            name="chevron-left"
-            size={40}
-            color={Colors.light}
-          />
-        </TouchableWithoutFeedback>
+      <AppBackHeader />
 
-        <View style={styles.header}>
-          <Text
-            style={[
-              styles.text,
-              {
-                fontSize: 20,
-                fontWeight: "600",
-                textAlign: "center",
-                color: Colors.light,
-              },
-            ]}
-          >
-            Bank Transfer
-          </Text>
-        </View>
+      <View style={styles.headerContainer}>
+        <Text style={styles.headerTitle}>Bank Transfer</Text>
+      </View>
 
-        <Box style={styles.box}>
-          <Text
-            style={[styles.text, { textAlign: "center", marginBottom: 10 }]}
-          >
-            {currency} to NGN
-          </Text>
+      <Box style={styles.box}>
+        <Text style={styles.currencyPairText}>{currency} to NGN</Text>
 
-          <View style={styles.inputBox}>
-            <Text style={styles.currencySign}>
+        <View style={styles.inputContainer}>
+          <View style={styles.inputWrapper}>
+            <Text style={styles.currencySymbol}>
               {getSymbolFromCurrency(currency)}
             </Text>
             <TextInput
               keyboardType="numeric"
               onChangeText={(input) => handleInput(input)}
-              placeholder="Amount"
+              placeholder="Enter Amount"
               placeholderTextColor={Colors.light}
               value={amount}
               style={styles.input}
             />
-            <Text
-              style={{ color: Colors.light, right: 0, position: "absolute" }}
-            >
+            <Text style={styles.maxAmountText}>
               max:{" "}
-              {rates &&
-                max.toLocaleString("en-US", {
-                  style: "currency",
-                  currency: currency,
-                })}{" "}
+              {max.toLocaleString("en-US", {
+                style: "currency",
+                currency: currency,
+              })}
             </Text>
           </View>
+        </View>
 
-          <Text style={styles.text}>
-            Rate:{" "}
-            {rates &&
-              rateForCurrency?.toLocaleString("en-NG", {
-                style: "currency",
-                currency: "NGN",
-              })}
-          </Text>
+        <View style={styles.rateContainer}>
+          <View style={styles.rateRow}>
+            <Text style={styles.rateLabel}>Exchange Rate:</Text>
+            <Text style={styles.rateValue}>
+              {rates &&
+                rateForCurrency?.toLocaleString("en-NG", {
+                  style: "currency",
+                  currency: "NGN",
+                })}
+            </Text>
+          </View>
+          <View style={styles.rateRow}>
+            <Text style={styles.rateLabel}>You'll Receive:</Text>
+            <Text style={styles.rateValue}>
+              {rates &&
+                (amount * rateForCurrency).toLocaleString("en-NG", {
+                  style: "currency",
+                  currency: "NGN",
+                })}
+            </Text>
+          </View>
+        </View>
 
-          <Text style={styles.text}>
-            Amount to be received:{" "}
-            {rates &&
-              (amount * rateForCurrency).toLocaleString("en-NG", {
-                style: "currency",
-                currency: "NGN",
-              })}
-          </Text>
-
-          {/* <View style={{ display: isHidden || isLoading ? "none" : "flex" }}>
-            {account && (
+        {!isHidden && !isLoading && (
+          <View style={styles.accountDetailsContainer}>
+            {currency === "USD" ? (
               <>
-                {currency === "USD" ? (
-                  <>
-                    <Line />
-                    <Text style={styles.text}>
-                      Account Holder: {account.account_holder}
-                    </Text>
-                    <Text style={styles.text}>
-                      Account Number: {account.account_number}
-                    </Text>
-                    <Text style={styles.text}>
-                      Routing NUmber: {account.routing_number}
-                    </Text>
-                    <Text style={styles.text}>
-                      Bank Name: {account.bank_name}
-                    </Text>
-                    <Text style={styles.text}>
-                      Account Type: {account.account_type}
-                    </Text>
-                  </>
-                ) : (
-                  <>
-                    <Line />
-                    <Text style={styles.text}>
-                      Account Holder: {account.account_holder}
-                    </Text>
-                    <Text style={styles.text}>Iban: {account.iban}</Text>
-                    <Text style={styles.text}>
-                      Bic Code: {account.swift_code}
-                    </Text>
-                    <Text style={styles.text}>
-                      Sort Code: {account.sort_code}
-                    </Text>
-                  </>
-                )}
+                <DetailRow
+                  label="Account Holder"
+                  value={accountDetails?.accountName}
+                />
+                <DetailRow
+                  label="Account Number"
+                  value={accountDetails?.accountNo}
+                />
+                <DetailRow
+                  label="Routing Number"
+                  value={accountDetails?.accountType}
+                />
+                <DetailRow
+                  label="Bank Name"
+                  value={accountDetails?.bankName}
+                />
+                <DetailRow
+                  label="Account Type"
+                  value={accountDetails?.address}
+                />
+              </>
+            ) : (
+              <>
+                <DetailRow
+                  label="Account Holder"
+                  value={accountDetails?.account_holder}
+                />
+                <DetailRow
+                  label="IBAN"
+                  value={accountDetails?.iban}
+                />
+                <DetailRow
+                  label="BIC Code"
+                  value={accountDetails?.swift_code}
+                />
+                <DetailRow
+                  label="Sort Code"
+                  value={accountDetails?.sort_code}
+                />
               </>
             )}
-          </View> */}
-          <AppButton
-            style={{
-              display: isHidden || isLoading ? "flex" : "none",
-              marginTop: 35,
-            }}
-            onPress={() => {
-              setIsLoading(true);
+          </View>
+        )}
 
-              setTimeout(() => {
-                setIsLoading(false);
-                setIsHidden(false);
-                LayoutAnimation.configureNext(
-                  LayoutAnimation.Presets.easeInEaseOut
-                );
-              }, 2000);
-            }}
-          >
-            {isLoading ? (
-              <ActivityIndicator
-                size={"large"}
-                color={Colors.white}
-              />
-            ) : (
-              "Generate Bank Details"
-            )}
-          </AppButton>
-        </Box>
-
-        <Text style={[styles.text, { fontSize: 16, marginTop: 10 }]}>
-          Note: You are required to use the generated bank details within an
-          hour and proceed to send proof of payment by tapping "Chat With Us" at
-          the bottom of this page
-        </Text>
-      </View>
-
-      <View style={styles.support}>
-        <MaterialCommunityIcons
-          name="headphones"
-          color={Colors.secondary}
-          size={20}
-        />
-        <Text
-          style={[styles.text, { color: Colors.secondary }]}
-          onPress={() => {}}
+        <AppButton
+          style={[
+            styles.generateButton,
+            { display: isHidden || isLoading ? "flex" : "none" },
+          ]}
+          onPress={() => {
+            setIsLoading(true);
+            setTimeout(() => {
+              setIsLoading(false);
+              setIsHidden(false);
+              LayoutAnimation.configureNext(
+                LayoutAnimation.Presets.easeInEaseOut
+              );
+            }, 2000);
+          }}
         >
-          Chat With Us
+          {isLoading ? (
+            <ActivityIndicator
+              size="large"
+              color={Colors.white}
+            />
+          ) : (
+            "Generate Bank Details"
+          )}
+        </AppButton>
+
+        <Text style={styles.noteText}>
+          Note: You are required to use the generated bank details within an
+          hour and proceed to send proof of payment by tapping "Chat With Us"
         </Text>
-      </View>
+      </Box>
+
+      <TouchableOpacity style={styles.supportContainer}>
+        <Ionicons
+          name="chatbubble-ellipses"
+          color={Colors.white}
+          size={24}
+        />
+        <Text style={styles.supportText}>Chat With Us</Text>
+      </TouchableOpacity>
     </Screen>
   );
 };
 
-export default BankDetailsScreen;
+const DetailRow = ({ label, value }) => (
+  <View style={styles.detailRow}>
+    <Text style={styles.detailLabel}>{label}:</Text>
+    <Text
+      numberOfLines={1}
+      style={styles.detailValue}
+    >
+      {value}
+    </Text>
+  </View>
+);
 
 const styles = StyleSheet.create({
-  box: {
-    marginTop: 25,
-    paddingHorizontal: 15,
-    paddingVertical: 25,
-  },
-  container: {
-    backgroundColor: Colors.primary,
+  gradient: {
     flex: 1,
-    justifyContent: "space-between",
-    paddingVertical: 15,
     paddingHorizontal: 15,
+    paddingTop: 20,
   },
-  currencySign: {
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  headerContainer: {
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: Colors.white,
+  },
+  box: {
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderRadius: 15,
+    padding: 20,
+  },
+  currencyPairText: {
+    textAlign: "center",
+    color: Colors.white,
+    fontSize: 18,
+    marginBottom: 15,
+  },
+  inputContainer: {
+    marginBottom: 15,
+  },
+  inputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderRadius: 10,
+    paddingHorizontal: 15,
+    height: 50,
+  },
+  currencySymbol: {
+    color: Colors.white,
     fontSize: 20,
-    color: Colors.light,
-  },
-  header: {
-    alignSelf: "center",
+    marginRight: 10,
   },
   input: {
-    color: Colors.silver,
+    flex: 1,
+    color: Colors.white,
     fontSize: 18,
   },
-  inputBox: {
-    alignItems: "center",
-    borderColor: Colors.silver,
-    borderRadius: 10,
-    borderWidth: 1,
-    flexDirection: "row",
-    gap: 5,
-    height: 45,
-    padding: 5,
-    paddingHorizontal: 10,
-    width: "100%",
+  maxAmountText: {
+    color: Colors.white,
+    opacity: 0.7,
   },
-  support: {
-    alignSelf: "center",
-    alignItems: "center",
+  rateContainer: {
+    marginBottom: 15,
+  },
+  rateRow: {
     flexDirection: "row",
-    gap: 5,
+    justifyContent: "space-between",
+    marginBottom: 5,
+  },
+  rateLabel: {
+    color: Colors.white,
+    fontSize: 16,
+  },
+  rateValue: {
+    color: Colors.white,
+    fontWeight: "bold",
+  },
+  accountDetailsContainer: {
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderRadius: 10,
+    padding: 15,
+    marginBottom: 15,
+  },
+  detailRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  detailLabel: {
+    color: Colors.white,
+    opacity: 0.7,
+  },
+  detailValue: {
+    color: Colors.white,
+    fontWeight: "bold",
+    flex: 1,
+    textAlign: "right",
+  },
+  generateButton: {
+    marginBottom: 15,
+  },
+  noteText: {
+    color: Colors.white,
+    textAlign: "center",
+    fontSize: 14,
+    opacity: 0.7,
+  },
+  supportContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     marginTop: 20,
   },
-  text: {
-    color: Colors.silver,
+  supportText: {
+    color: Colors.white,
+    marginLeft: 10,
     fontSize: 18,
-    fontWeight: "500",
   },
 });
+
+export default BankDetailsScreen;

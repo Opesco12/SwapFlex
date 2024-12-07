@@ -7,7 +7,6 @@ import {
   Text,
   View,
   RefreshControl,
-  KeyboardAvoidingView,
 } from "react-native";
 import { StatusBar as ExpoStatusBar } from "expo-status-bar";
 

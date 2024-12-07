@@ -78,6 +78,7 @@ export default function HomeScreen() {
 
     return () => unsubscribe();
   }, []);
+
   const navigate = (location, currency) => {
     if (isConnected !== null) {
       if (currency) {
@@ -158,7 +159,7 @@ export default function HomeScreen() {
               </View>
               <View style={styles.smallContainer}>
                 <SmallBox
-                  onPress={() => navigate("bank-details", "USD")}
+                  onPress={() => navigate("payment-methods")}
                   text={"USD to NGN"}
                 >
                   <MaterialCommunityIcons
